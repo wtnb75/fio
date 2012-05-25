@@ -604,7 +604,7 @@ static void do_io(struct thread_data *td)
 		 *	- Asked to verify (!td_rw(td))
 		 *	- Or the io_u is from our verify list (mixed write/ver)
 		 */
-		if (td->o.verify != VERIFY_NONE && io_u->ddir == DDIR_READ &&
+		if (td->o.verify != VERIFY_NONE && ddir_rw(io_u->ddir) &&
 		    ((io_u->flags & IO_U_F_VER_LIST) || !td_rw(td))) {
 			if (td->o.verify_async)
 				io_u->end_io = verify_io_u_async;
@@ -1184,6 +1184,7 @@ static void *thread_main(void *data)
 		} else
 			finish_log(td, td->iops_log, "iops");
 	}
+	write_verify_statfile(td);
 
 	fio_mutex_up(writeout_mutex);
 	if (td->o.exec_postrun)

@@ -1,0 +1,17 @@
+[random-io]
+description=verify4K
+rw=read
+
+filename=/var/tmp/testfile
+blocksize=4K
+size=1G
+
+iodepth=128
+direct=1
+ioengine=libaio
+randrepeat=0
+
+verify=meta
+continue_on_error=none
+verify_status=/var/tmp/testfile.stats
+#verify_ringsize=0

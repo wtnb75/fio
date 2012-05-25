@@ -115,6 +115,8 @@ struct fio_file {
 	enum fio_file_flags flags;
 
 	struct disk_util *du;
+	unsigned long *verify_seeds;
+	unsigned long verify_ring_cur;
 };
 
 #define FILE_FLAG_FNS(name)						\
@@ -146,6 +148,7 @@ FILE_FLAG_FNS(partial_mmap);
 struct thread_data;
 extern void close_files(struct thread_data *);
 extern void close_and_free_files(struct thread_data *);
+extern void write_verify_statfile(struct thread_data *);
 extern int __must_check setup_files(struct thread_data *);
 extern int __must_check file_invalidate_cache(struct thread_data *, struct fio_file *);
 extern int __must_check generic_open_file(struct thread_data *, struct fio_file *);

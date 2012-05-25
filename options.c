@@ -1606,6 +1606,21 @@ static struct fio_option options[FIO_MAX_OPTS] = {
 		.help	= "Verify this number of IO blocks",
 		.parent	= "verify",
 	},
+	{
+		.name	= "verify_status",
+		.type	= FIO_OPT_STR_STORE,
+		.off1	= td_var_offset(verify_statfile),
+		.help	= "save verify status of each blocks",
+		.parent	= "verify",
+	},
+	{
+		.name	= "verify_ringsize",
+		.type	= FIO_OPT_INT,
+		.off1	= td_var_offset(verify_ringsize),
+		.help	= "verify ring size (0=save all)",
+		.def    = "0",
+		.parent	= "verify",
+	},
 #ifdef FIO_HAVE_CPU_AFFINITY
 	{
 		.name	= "verify_async_cpus",

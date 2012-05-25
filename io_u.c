@@ -1298,8 +1298,8 @@ void io_u_log_error(struct thread_data *td, struct io_u *io_u)
 
 	log_err(": %s\n", strerror(io_u->error));
 
-	log_err("     %s offset=%llu, buflen=%lu\n", msg[io_u->ddir],
-					io_u->offset, io_u->xfer_buflen);
+	log_err("     %s offset=%llu, buflen=%lu, seed=%lu\n", msg[io_u->ddir],
+					io_u->offset, io_u->xfer_buflen, io_u->rand_seed);
 
 	if (!td->error)
 		td_verror(td, io_u->error, "io_u error");

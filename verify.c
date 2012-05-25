@@ -646,23 +646,27 @@ static int verify_trimmed_io_u(struct thread_data *td, struct io_u *io_u)
 	return ret;
 }
 
-static int verify_header(struct io_u *io_u, struct verify_header *hdr)
+static int verify_header(struct io_u *io_u, struct verify_header *hdr, unsigned long seed)
 {
 	void *p = hdr;
 	uint32_t crc;
 
 	if (hdr->magic != FIO_HDR_MAGIC)
 		return 0;
-	if (hdr->len > io_u->buflen) {
+	if (hdr->len > io_u->buflen && seed) {
 		log_err("fio: verify header exceeds buffer length (%u > %lu)\n", hdr->len, io_u->buflen);
 		return 0;
 	}
 
 	crc = fio_crc32c(p, offsetof(struct verify_header, crc32));
-	if (crc == hdr->crc32)
+	if (crc != hdr->crc32){
+		log_err("fio: verify header crc %x, calculated %x\n",
+			hdr->crc32, crc);
+		return 0;
+	}
+	if (seed==0 || seed==hdr->rand_seed)
 		return 1;
 
-	log_err("fio: verify header crc %x, calculated %x\n", hdr->crc32, crc);
 	return 0;
 }
 
@@ -673,6 +677,18 @@ int verify_io_u(struct thread_data *td, struct io_u *io_u)
 	void *p;
 	int ret;
 
+	if (td->o.verify_statfile && io_u->ddir == DDIR_WRITE && io_u->file->verify_seeds){
+		unsigned int idx=io_u->offset/td->o.bs[DDIR_WRITE];
+		if(td->o.verify_ringsize){
+			unsigned int idx2=io_u->file->verify_ring_cur++;
+			io_u->file->verify_ring_cur%=td->o.verify_ringsize;
+			io_u->file->verify_seeds[idx2]=io_u->rand_seed;
+			off_t *p=(off_t *)(io_u->file->verify_seeds[td->o.verify_ringsize]);
+			p[idx2]=io_u->offset;
+		}else{
+			io_u->file->verify_seeds[idx]=io_u->rand_seed;
+		}
+	}
 	if (td->o.verify == VERIFY_NULL || io_u->ddir != DDIR_READ)
 		return 0;
 	if (io_u->flags & IO_U_F_TRIMMED) {
@@ -699,12 +715,20 @@ int verify_io_u(struct thread_data *td, struct io_u *io_u)
 			memswp(p, p + td->o.verify_offset, header_size);
 		hdr = p;
 
-		if (!verify_header(io_u, hdr)) {
+		unsigned long seed=0;
+		if (td->o.verify_statfile && td->o.verify_ringsize==0){
+			unsigned int idx=io_u->offset/td->o.bs[DDIR_WRITE];
+			seed=io_u->file->verify_seeds[idx];
+		}
+		if (!verify_header(io_u, hdr, seed)) {
+			if(td->o.verify_statfile && seed==0){
+				continue;
+			}
 			log_err("verify: bad magic header %x, wanted %x at "
-				"file %s offset %llu, length %u\n",
+				"file %s offset %llu, length %u, seed %lu\n",
 				hdr->magic, FIO_HDR_MAGIC,
 				io_u->file->file_name,
-				io_u->offset + hdr_num * hdr->len, hdr->len);
+				io_u->offset + hdr_num * hdr->len, hdr->len, hdr->rand_seed);
 			return EILSEQ;
 		}
 

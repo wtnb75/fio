@@ -817,6 +817,31 @@ int setup_files(struct thread_data *td)
 	if (!td->o.read_iolog_file)
 		td->total_io_size = td->o.size * td->o.loops;
 
+	if(td->o.verify_statfile) {
+		FILE *fp=fopen(td->o.verify_statfile, "rb");
+		unsigned int entsz=sizeof(unsigned long);
+		size_t r;
+		if(td->o.verify_ringsize){
+			entsz+=sizeof(off_t);
+		}
+		for_each_file(td, f, i) {
+			if(td->o.verify_ringsize){
+				f->verify_seeds=calloc(td->o.verify_ringsize, entsz);
+				f->verify_ring_cur=0;
+				if(fp){
+					r=fread(f->verify_seeds, entsz, td->o.verify_ringsize, fp);
+					log_info("read ring: %d/%d\n", r, td->o.verify_ringsize);
+				}
+			}else{
+				f->verify_seeds=calloc(f->io_size/td->o.bs[DDIR_WRITE], entsz);
+				if(fp){
+					r=fread(f->verify_seeds, entsz, f->io_size/td->o.bs[DDIR_WRITE], fp);
+					log_info("read seed: %d/%d\n", r, f->io_size/td->o.bs[DDIR_WRITE]);
+				}
+			}
+		}
+		if(fp){ fclose(fp); }
+	}
 done:
 	if (td->o.create_only)
 		td->done = 1;
@@ -913,6 +938,10 @@ void close_and_free_files(struct thread_data *td)
 		f->file_name = NULL;
 		sfree(f->file_map);
 		f->file_map = NULL;
+		if(f->verify_seeds){
+			free(f->verify_seeds);
+			f->verify_seeds=NULL;
+		}
 		sfree(f);
 	}
 
@@ -923,6 +952,34 @@ void close_and_free_files(struct thread_data *td)
 	td->o.nr_files = 0;
 }
 
+void write_verify_statfile(struct thread_data *td)
+{
+	struct fio_file *f;
+	unsigned int i;
+
+	if(td->o.verify_statfile && td_write(td)){
+		FILE *fp=fopen(td->o.verify_statfile, "w+");
+		if(fp==NULL){
+			log_info("seed write failed: %m\n");
+		}
+		unsigned int entsz=sizeof(unsigned long);
+		size_t r;
+		if(td->o.verify_ringsize){
+			entsz+=sizeof(off_t);
+		}
+		for_each_file(td, f, i) {
+			if(f->verify_seeds==NULL) continue;
+			if(td->o.verify_ringsize){
+				r=fwrite(f->verify_seeds, entsz, td->o.verify_ringsize, fp);
+				log_info("write ring: %d/%d\n", r, td->o.verify_ringsize);
+			}else{
+				r=fwrite(f->verify_seeds, entsz, f->io_size/td->o.bs[DDIR_WRITE], fp);
+				log_info("write seed: %d/%d\n", r, f->io_size/td->o.bs[DDIR_WRITE]);
+			}
+		}
+		fclose(fp);
+	}
+}
 static void get_file_type(struct fio_file *f)
 {
 	struct stat sb;
